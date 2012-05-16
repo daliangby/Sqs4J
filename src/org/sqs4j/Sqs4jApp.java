@@ -30,8 +30,8 @@ import javax.management.remote.JMXPrincipal;
 import javax.management.remote.JMXServiceURL;
 import javax.security.auth.Subject;
 
-import net.kotek.jdbm.DB;
-import net.kotek.jdbm.DBMaker;
+import org.apache.jdbm.DB;
+import org.apache.jdbm.DBMaker;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.apache.log4j.xml.DOMConfigurator;
@@ -479,11 +479,10 @@ public class Sqs4jApp implements Runnable {
           _conf.dbPath = System.getProperty("user.dir", ".") + "/db";
         }
 
-        DBMaker maker = new DBMaker(_conf.dbPath + "/sqs4j.db");
-        maker.disableAutoDefrag();
+        DBMaker maker = DBMaker.openFile(_conf.dbPath + "/sqs4j.db");
         maker.useRandomAccessFile();
 
-        _db = maker.build();
+        _db = maker.make();
       }
 
       _scheduleSync.scheduleWithFixedDelay(this, 1, _conf.syncinterval, TimeUnit.SECONDS);
