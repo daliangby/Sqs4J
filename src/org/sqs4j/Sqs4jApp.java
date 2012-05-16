@@ -480,7 +480,11 @@ public class Sqs4jApp implements Runnable {
         }
 
         DBMaker maker = DBMaker.openFile(_conf.dbPath + "/sqs4j.db");
-        maker.useRandomAccessFile();
+        //maker.useRandomAccessFile();
+        maker.disableTransactions();
+        
+        //maker.enableMRUCache().setMRUCacheSize(100000);
+        maker.enableSoftCache();
 
         _db = maker.make();
       }
