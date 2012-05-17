@@ -49,7 +49,7 @@ public class Sqs4jApp implements Runnable {
   static final String KEY_PUTPOS = "putpos";
   static final String KEY_GETPOS = "getpos";
   static final String KEY_MAXQUEUE = "maxqueue";
-  
+
   private final String CONF_NAME; //配置文件
 
   private org.slf4j.Logger _log = org.slf4j.LoggerFactory.getLogger(this.getClass());
@@ -101,12 +101,7 @@ public class Sqs4jApp implements Runnable {
   @Override
   //定时将内存中的内容写入磁盘
   public void run() {
-    _lock.lock();
-    try {
-      this.flush(null);
-    } finally {
-      _lock.unlock();
-    }
+    this.flush(null);
   }
 
   /**
@@ -212,23 +207,33 @@ public class Sqs4jApp implements Runnable {
   }
 
   /**
-   * 刷新内存数据到磁盘 
-   * @param httpsqs_input_name 队列名称,如果是null,代表刷新所有的队列.
+   * 刷新内存数据到磁盘
+   * 
+   * @param httpsqs_input_name
+   *          队列名称,如果是null,代表刷新所有的队列.
    */
   public void flush(String httpsqs_input_name) {
     try {
-      if (httpsqs_input_name == null) {
+      if (httpsqs_input_name == null) {  //遍历
         for (DB db : _dbMap.values()) {
+          _lock.lock();
           try {
             db.commit();
           } catch (Throwable thex) {
             thex.printStackTrace();
+          } finally {
+            _lock.unlock();
           }
         }
       } else {
         DB db = _dbMap.get(httpsqs_input_name);
         if (db != null) {
-          db.commit();
+          _lock.lock();
+          try {
+            db.commit();
+          } finally {
+            _lock.unlock();
+          }
         }
       }
     } catch (Throwable thex) {
@@ -328,16 +333,16 @@ public class Sqs4jApp implements Runnable {
 
     this.flush(httpsqs_input_name); //实时刷新到磁盘
 
-//@wjw_note: 如果删除了DB文件,就找不回数据了.    
+    //@wjw_note: 如果删除了DB文件,就找不回数据了.    
     //->删除DB文件
-//    DB db = _dbMap.remove(httpsqs_input_name);
-//    if (db != null) {
-//      db.close();
-//    }
-//    DBMaker maker = DBMaker.openFile(_conf.dbPath + "/" + (new MD5()).getMD5ofStr(httpsqs_input_name) + ".db");
-//    maker.deleteFilesAfterClose();
-//    db = maker.make();
-//    db.close();
+    //    DB db = _dbMap.remove(httpsqs_input_name);
+    //    if (db != null) {
+    //      db.close();
+    //    }
+    //    DBMaker maker = DBMaker.openFile(_conf.dbPath + "/" + (new MD5()).getMD5ofStr(httpsqs_input_name) + ".db");
+    //    maker.deleteFilesAfterClose();
+    //    db = maker.make();
+    //    db.close();
     //<-删除DB文件
 
     return true;
