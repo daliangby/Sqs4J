@@ -273,7 +273,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
             }
           }
           /* 设置最大的队列数量，最小值为10条，最大值为10亿条 */
-        } else if (httpsqs_input_opt.equals("maxqueue") && httpsqs_input_num >= 10
+        } else if (httpsqs_input_opt.equals(Sqs4jApp.KEY_MAXQUEUE) && httpsqs_input_num >= 10
             && httpsqs_input_num <= Sqs4jApp.DEFAULT_MAXQUEUE) {
           if (checkUser(response)) {
             if (_app.httpsqs_maxqueue(httpsqs_input_name, httpsqs_input_num) != 0) {
