@@ -211,6 +211,10 @@ public class Sqs4jApp implements Runnable {
     return map;
   }
 
+  /**
+   * 刷新内存数据到磁盘 
+   * @param httpsqs_input_name 队列名称,如果是null,代表刷新所有的队列.
+   */
   public void flush(String httpsqs_input_name) {
     try {
       if (httpsqs_input_name == null) {
