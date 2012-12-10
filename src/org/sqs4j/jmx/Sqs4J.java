@@ -11,7 +11,7 @@ public class Sqs4J implements Sqs4JMBean{
   
   @Override
   public boolean flush() {
-    _app.flush(null);
+    _app.flush();
     return true;
   }
 

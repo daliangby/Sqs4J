@@ -61,13 +61,12 @@ public class Sqs4jApp implements Runnable {
   private JMXConnectorServer _jmxCS; //JMXConnectorServer
 
   static Lock _lock = new ReentrantLock(); //HTTP请求并发锁
+  public DB _db; //数据库
 
   //同步磁盘的Scheduled
   ScheduledExecutorService _scheduleSync = Executors.newSingleThreadScheduledExecutor();
 
   private Channel _channel; //Socket通道
-
-  private Map<String, DB> _dbMap = null; //数据库Map,key是队列的MD5值,value是db对象.
 
   //初始化目录和Log4j
   static {
@@ -102,7 +101,7 @@ public class Sqs4jApp implements Runnable {
   @Override
   //定时将内存中的内容写入磁盘
   public void run() {
-    this.flush(null);
+    this.flush();
   }
 
   /**
@@ -213,50 +212,21 @@ public class Sqs4jApp implements Runnable {
    * @param httpsqs_input_name
    *          队列名称,如果是null,代表刷新所有的队列.
    */
-  public void flush(String httpsqs_input_name) {
+  public void flush() {
+    _lock.lock();
     try {
-      if (httpsqs_input_name == null) {  //遍历
-        for (DB db : _dbMap.values()) {
-          _lock.lock();
-          try {
-            db.commit();
-          } catch (Throwable thex) {
-            thex.printStackTrace();
-          } finally {
-            _lock.unlock();
-          }
-        }
-      } else {
-        DB db = _dbMap.get(httpsqs_input_name);
-        if (db != null) {
-          _lock.lock();
-          try {
-            db.commit();
-          } finally {
-            _lock.unlock();
-          }
-        }
-      }
+      _db.commit();
     } catch (Throwable thex) {
       thex.printStackTrace();
+    } finally {
+      _lock.unlock();
     }
   }
 
   Map<String, String> getHashMap(String httpsqs_input_name) {
-    DB db = _dbMap.get(httpsqs_input_name);
-    if (db == null) {
-      DBMaker maker = DBMaker.openFile(_conf.dbPath + "/" + (new MD5()).getMD5ofStr(httpsqs_input_name) + ".db");
-      //maker.useRandomAccessFile();
-      maker.disableTransactions();
-      maker.enableSoftCache();
-
-      db = maker.make();
-      _dbMap.put(httpsqs_input_name, db);
-    }
-
-    Map<String, String> map = db.getHashMap(httpsqs_input_name);
+    Map<String, String> map = _db.getHashMap(httpsqs_input_name);
     if (map == null) {
-      map = db.createHashMap(httpsqs_input_name);
+      map = _db.createHashMap(httpsqs_input_name);
 
       map.put(KEY_PUTPOS, "0");
       map.put(KEY_GETPOS, "0");
@@ -311,7 +281,7 @@ public class Sqs4jApp implements Runnable {
       Map<String, String> map = getHashMap(httpsqs_input_name);
       map.put(KEY_MAXQUEUE, String.valueOf(httpsqs_input_num));
 
-      this.flush(httpsqs_input_name); //实时刷新到磁盘
+      this.flush(); //实时刷新到磁盘
       _log.info(String.format("队列配置被修改:(%s:maxqueue)=%d", httpsqs_input_name, httpsqs_input_num));
       return httpsqs_input_num;
     } else {
@@ -332,19 +302,7 @@ public class Sqs4jApp implements Runnable {
     map.put(KEY_GETPOS, "0");
     map.put(KEY_MAXQUEUE, String.valueOf(DEFAULT_MAXQUEUE));
 
-    this.flush(httpsqs_input_name); //实时刷新到磁盘
-
-    //@wjw_note: 如果删除了DB文件,就找不回数据了.    
-    //->删除DB文件
-    //    DB db = _dbMap.remove(httpsqs_input_name);
-    //    if (db != null) {
-    //      db.close();
-    //    }
-    //    DBMaker maker = DBMaker.openFile(_conf.dbPath + "/" + (new MD5()).getMD5ofStr(httpsqs_input_name) + ".db");
-    //    maker.deleteFilesAfterClose();
-    //    db = maker.make();
-    //    db.close();
-    //<-删除DB文件
+    this.flush(); //实时刷新到磁盘
 
     return true;
   }
@@ -486,12 +444,17 @@ public class Sqs4jApp implements Runnable {
         _conf.auth = null;
       }
 
-      if (_dbMap == null) {
+      if (_db == null) {
         if (_conf.dbPath == null || _conf.dbPath.length() == 0) {
           _conf.dbPath = System.getProperty("user.dir", ".") + "/db";
         }
 
-        _dbMap = new HashMap<String, DB>(); //数据库Map,key是队列的MD5值
+        DBMaker maker = DBMaker.openFile(_conf.dbPath + "/sqs4j.db");
+        //maker.useRandomAccessFile();
+        maker.disableTransactions();
+        maker.enableSoftCache();
+
+        _db = maker.make();
       }
 
       _scheduleSync.scheduleWithFixedDelay(this, 1, _conf.syncinterval, TimeUnit.SECONDS);
@@ -590,23 +553,15 @@ public class Sqs4jApp implements Runnable {
 
     }
 
-    if (_dbMap != null) {
-      _lock.lock();
+    if (_db != null) {
+      this.flush(); //实时刷新到磁盘
+
       try {
-        for (DB db : _dbMap.values()) {
-          try {
-            db.commit();
-            db.close();
-          } catch (Throwable ex) {
-            _log.error(ex.getMessage(), ex);
-          }
-        }
-        _dbMap.clear();
+        _db.close();
       } catch (Throwable ex) {
         _log.error(ex.getMessage(), ex);
       } finally {
-        _dbMap = null;
-        _lock.unlock();
+        _db = null;
       }
     }
 

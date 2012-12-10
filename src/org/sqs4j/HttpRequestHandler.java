@@ -295,7 +295,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
           /* 手动刷新内存内容到磁盘 */
         } else if (httpsqs_input_opt.equals("flush")) {
           if (checkUser(response)) {
-            _app.flush(httpsqs_input_name);
+            _app.flush();
             _buf.append(String.format("%s", "HTTPSQS_FLUSH_OK"));
           }
         } else { /* 命令错误 */
